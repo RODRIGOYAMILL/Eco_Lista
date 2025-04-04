@@ -103,6 +103,41 @@ export default function App() {
 
   const { width } = useWindowDimensions();
 
+  const cargarHistorial = async () => {
+    try {
+      setCargando(true);
+      const { data, error } = await supabase
+        .from('eco_lista')
+        .select('*')
+        .order('fecha_compra', { ascending: false });
+      
+      if (error) throw error;
+
+      setListaCompras(data || []);
+      setProductosFiltrados(data || []);
+      
+      const categoriasUnicas = Array.from(new Set(data?.map((item) => item.categoria) || []));
+      setCategoriasDisponibles(categoriasUnicas);
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo cargar el historial. Inténtalo de nuevo.');
+      console.error('Error al cargar historial:', error);
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  // Efecto para carga inicial y actualización periódica
+  useEffect(() => {
+    // Carga inicial
+    cargarHistorial();
+    
+    // Configurar intervalo para actualizar cada 5 segundos
+    const intervalId = setInterval(cargarHistorial, 5000);
+    
+    // Limpieza al desmontar el componente
+    return () => clearInterval(intervalId);
+  }, []);
+
   // Efecto para debounce de la búsqueda
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -128,31 +163,6 @@ export default function App() {
       setProductosFiltrados(listaCompras);
     }
   }, [debouncedQuery, listaCompras]);
-
-  const cargarHistorial = async () => {
-    setCargando(true);
-    const { data, error } = await supabase
-      .from('eco_lista')
-      .select('*')
-      .order('fecha_compra', { ascending: false });
-    
-    setCargando(false);
-
-    if (error) {
-      Alert.alert('Error', 'No se pudo cargar el historial. Inténtalo de nuevo.');
-      console.error('Error al cargar historial:', error);
-    } else {
-      setListaCompras(data);
-      setProductosFiltrados(data);
-      
-      const categoriasUnicas = Array.from(new Set(data.map((item) => item.categoria)));
-      setCategoriasDisponibles(categoriasUnicas);
-    }
-  };
-
-  useEffect(() => {
-    cargarHistorial();
-  }, []);
 
   const productosPorCategoria = (categoria: string) => {
     if (categoria === '') {
@@ -182,22 +192,18 @@ export default function App() {
   };
 
   const eliminarProducto = async (id: string) => {
-    console.log('Iniciando eliminación para ID:', id);
-    
     try {
       const { error } = await supabase
         .from('eco_lista')
         .delete()
         .eq('id', id);
   
-      console.log('Respuesta de Supabase:', { error });
-  
       if (error) throw error;
   
       await cargarHistorial();
       Alert.alert('Éxito', 'Producto eliminado');
     } catch (error) {
-      console.error('Error completo:', error);
+      console.error('Error al eliminar producto:', error);
       Alert.alert('Error', 'Falló la eliminación');
     }
   };
